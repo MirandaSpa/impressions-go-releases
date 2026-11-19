@@ -12,6 +12,9 @@
 #
 #   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/MirandaSpa/impressions-go-releases/main/install.ps1))) -Canal beta
 #
+# O con doble clic en scripts\instalar-estable.cmd, instalar-beta.cmd o
+# borrar-credencial.cmd (publicados junto a este script).
+#
 # No usar "irm ... | iex": Invoke-Expression no acepta el bloque param y
 # dejaria la configuracion del script en la sesion.
 #
@@ -23,6 +26,9 @@
 # El texto va sin tildes a proposito: Windows PowerShell 5.1 lee un .ps1 sin
 # BOM como ANSI.
 
+# CmdletBinding: un parametro desconocido (un .cmd mas nuevo que el script, o
+# al reves) es un error, no se ignora en silencio.
+[CmdletBinding()]
 param(
     # Canal de actualizaciones: estable o beta. Si no se indica, se mantiene
     # el que tenga el equipo, o estable si es nuevo.
@@ -35,7 +41,13 @@ param(
     # No crea los accesos directos del escritorio y de Inicio.
     [switch]$SinAccesos,
     # No abre el agente al terminar.
-    [switch]$NoAbrir
+    [switch]$NoAbrir,
+    # No instala: borra la credencial guardada de este usuario (por ejemplo,
+    # cuando Informatica la cambia) y abre el agente para ingresar la nueva.
+    [switch]$BorrarCredencial,
+    # Permite correrlo como administrador (equipos sin UAC, o cuando el
+    # usuario del agente es el propio administrador).
+    [switch]$PermitirAdmin
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,6 +111,49 @@ function Get-InicioAntiguo {
             $l.TargetPath -ne $Exe -and $destino -match '\\Impresiones\b|impresor|impresions_go'
         }
     }
+}
+
+# Elevado, %APPDATA% y la credencial serian los del administrador, no los de
+# la persona que usa el agente. El permiso de administrador se pide solo
+# cuando hace falta (paso 4).
+if ((Test-Admin) -and -not $PermitirAdmin) {
+    throw 'Corre esto sin "Ejecutar como administrador", con la sesion de la persona que usara el agente: el permiso de administrador se pide cuando hace falta.'
+}
+
+# Solo borrar la credencial: el agente la vuelve a pedir al abrir.
+if ($BorrarCredencial) {
+    if ($Canal -ne '' -or $SinExclusion -or $SinAccesos) {
+        Write-Warning 'Con -BorrarCredencial no se instala nada: se ignoran -Canal, -SinExclusion y -SinAccesos.'
+    }
+    $abiertos = @(Get-Process impresor -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe })
+    if ($abiertos.Count -gt 0) {
+        Write-Paso 'Cerrando el agente'
+        $abiertos | Stop-Process -Force
+        $abiertos | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    }
+    $credencial = Join-Path $ConfigDir 'credential.bin'
+    if (Test-Path $credencial) {
+        Remove-Item $credencial -Force
+        Write-Paso 'Credencial borrada'
+    } else {
+        Write-Paso 'No habia una credencial guardada para este usuario'
+    }
+    $variable = @('User', 'Machine') | Where-Object { [Environment]::GetEnvironmentVariable('PRINT_SERVICE_CREDENTIAL', $_) }
+    if ($variable) {
+        Write-Warning "La variable PRINT_SERVICE_CREDENTIAL ($($variable -join ', ')) tiene una credencial y el agente la usa antes que la guardada: no pedira la nueva. Pide a Informatica que la corrija o la borre."
+        return
+    }
+    if (-not (Test-Path $Exe)) {
+        Write-Warning "El agente no esta instalado en $Carpeta."
+        return
+    }
+    if (@(Get-Process impresor -ErrorAction SilentlyContinue).Count -gt 0) {
+        Write-Warning 'Queda un agente abierto que este script no pudo cerrar. Cierralo y abre el agente desde el escritorio para pegar la credencial.'
+        return
+    }
+    if (-not $NoAbrir) { Start-Process $Exe -WorkingDirectory $Carpeta }
+    Write-Host 'Listo: al abrir, el agente pide la credencial. Pega la vigente.' -ForegroundColor Green
+    return
 }
 
 # 1. Otro agente abierto: se cierra a mano antes de seguir.
