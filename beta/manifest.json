@@ -1,7 +1,7 @@
 {
-  "version": "v0.2.2",
-  "channel": "estable",
-  "url": "https://github.com/MirandaSpa/impressions-go-releases/releases/download/v0.2.2/impresions_go-v0.2.2.exe",
-  "sha256": "809b424d8da296f50378910d4483f81596849d7cac3e5566a821205d42330f42",
-  "signature": "x9Xwh/cm1OEjBrzGuCVypCj6++G5+GPN0HtZ5fawlpNJLzJXAUO3axnRqWxiwc+FWvwBT+ssDtSAlAiG34wOAw=="
+  "version": "v0.2.3-beta.1",
+  "channel": "beta",
+  "url": "https://github.com/MirandaSpa/impressions-go-releases/releases/download/v0.2.3-beta.1/impresions_go-v0.2.3-beta.1.exe",
+  "sha256": "29f136a8a7304c9d8ac648d02ca28dfdb49f4eafab547def88cc92e3d31106da",
+  "signature": "ISHxuWdOyCtmMSMp+Cj9tqQutsEOmnHVwfxNYES8XzvuUFSGQoM89znoB1AQWAhnJ/g3EeF4IFqkL911N2EyAg=="
 }
