@@ -47,7 +47,10 @@ param(
     [switch]$BorrarCredencial,
     # Permite correrlo como administrador (equipos sin UAC, o cuando el
     # usuario del agente es el propio administrador).
-    [switch]$PermitirAdmin
+    [switch]$PermitirAdmin,
+    # Instala aunque el Control inteligente de aplicaciones de Windows 11
+    # este activado o en evaluacion (bloqueara el agente; solo para pruebas).
+    [switch]$IgnorarControlInteligente
 )
 
 $ErrorActionPreference = 'Stop'
@@ -161,6 +164,22 @@ $otros = @(Get-OtrosAgentes)
 if ($otros.Count -gt 0) {
     $lista = ($otros | ForEach-Object { "  - $($_.Name) (PID $($_.ProcessId)) $($_.ExecutablePath)" }) -join "`n"
     throw "Hay otro agente de impresion abierto; si siguen los dos, los documentos se imprimen dos veces. Cierralo (y quitalo del inicio de Windows) y vuelve a correr el script:`n$lista"
+}
+
+# 1b. Control inteligente de aplicaciones (Smart App Control, Windows 11):
+# bloquea los programas sin firma de codigo que Microsoft no conoce, y cada
+# version del agente es un .exe nuevo. No admite excepciones por programa:
+# hay que desactivarlo, y eso lo decide una persona, no este script. En
+# "evaluacion" puede activarse solo mas adelante. Sin Defender o en Windows
+# 10 no existe: no se revisa.
+$control = $null
+try { $control = (Get-MpComputerStatus).SmartAppControlState } catch { }
+if ($control -in @('On', 'Eval') -and -not $IgnorarControlInteligente) {
+    $estado = if ($control -eq 'On') { 'activado' } else { 'en evaluacion (puede activarse solo mas adelante)' }
+    throw ("El Control inteligente de aplicaciones de Windows esta $estado y bloquearia el agente en cada actualizacion. No se instalo nada.`n" +
+        "Desactivalo y vuelve a correr el instalador:`n" +
+        "  1. Seguridad de Windows > Control de aplicaciones y navegador > Configuracion de Control inteligente de aplicaciones.`n" +
+        "  2. Elige Desactivado (Windows puede no permitir volver a activarlo sin reinstalar; Defender sigue protegiendo el equipo).")
 }
 
 # 2. El canal: el indicado, o el que ya tenga el equipo.
